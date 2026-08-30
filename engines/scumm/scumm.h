@@ -588,6 +588,21 @@ public:
 	bool canLoadGameStateCurrently(Common::U32String *msg = nullptr) override;
 	Common::Error saveGameState(int slot, const Common::String &desc, bool isAutosave = false) override;
 	bool canSaveGameStateCurrently(Common::U32String *msg = nullptr) override;
+	// The generic Engine::getSaveStateName() default ("target.990") does not
+	// match the filename SCUMM's own save/load internals actually use
+	// (makeSavegameName() -- "target.s990", with a 's'/'c' prefix character
+	// SCUMM has always used to distinguish real saves from temporary/restart
+	// state). Nothing SCUMM-internal calls the generic getSaveStateName(), so
+	// this mismatch was invisible until libretro's save-state bridge (see
+	// backends/platform/libretro) needed to open the file a slot's
+	// saveGameState()/loadGameState() call had just written/would read,
+	// purely from the generic Engine interface, and got a "file not found"
+	// for a save that had, in fact, just been written correctly.
+	Common::String getSaveStateName(int slot) const override { return makeSavegameName(slot, false); }
+	// loadGameState()/saveGameState() only arm _saveLoadFlag here; the actual
+	// file I/O happens later, in scummLoop_handleSaveLoad(). See the comment
+	// on Engine::isSaveOrLoadPending().
+	bool isSaveOrLoadPending() const override { return _saveLoadFlag != 0; }
 
 	void pauseEngineIntern(bool pause) override;
 
