@@ -280,4 +280,14 @@ Common::String OSystem_libretro::getSaveDir(void) {
 void OSystem_libretro::addSysArchivesToSearchSet(Common::SearchSet &s, int priority) {
 	if (!s_systemDir.empty())
 		s.add("systemDir", new Common::FSDirectory(Common::FSNode(Common::Path(s_systemDir))), priority);
+
+	// Engine-data files (fonts.dat, toon.dat, etc.) are compiled directly
+	// into this WASM build at /engine-data via --embed-file in
+	// build/build-retroarch-core.sh, since there is no persistent, shared
+	// system directory available across ROM launches in the browser
+	// sandbox the way there is on desktop platforms. See
+	// docs/superpowers/specs/2026-09-02-wasm-engine-data-embed-design.md.
+	Common::FSNode embeddedEngineData{Common::Path("/engine-data")};
+	if (embeddedEngineData.isDirectory())
+		s.add("embeddedEngineData", new Common::FSDirectory(embeddedEngineData), priority);
 }
