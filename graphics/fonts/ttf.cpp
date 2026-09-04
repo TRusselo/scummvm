@@ -406,18 +406,28 @@ bool TTFFont::load(Common::SeekableReadStream *ttfFile, DisposeAfterUse::Flag di
 	// glyph-caching loop that the confirmed crash stack trace shows this call site
 	// reaching (Screen::loadFont -> loadTTFFont -> TTFFont::load -> cacheGlyph ->
 	// FT_Load_Glyph -> [trap inside FreeType's autofit dispatch]).
+	// [fonts-oob-debug] Task B (2026-09-03 follow-up): no fflush here -- this
+	// fires once per font load (cheap either way), but the loop below will
+	// call cacheGlyph() up to 256 times before a crash could occur, so this
+	// line is never the last one printed before a trap and doesn't need the
+	// expensive synchronous flush.
 	printf("[fonts-oob-debug] TTFFont::load: face=%p num_glyphs=%ld mapping=%p loadFlags=0x%x\n",
 		(void *)_face, (long)_face->num_glyphs, (const void *)mapping, (unsigned int)_loadFlags);
-	fflush(stdout);
 
 	if (!mapping) {
 		// Allow loading of all unicode characters.
 		_allowLateCaching = true;
 
 		// Load all ISO-8859-1 characters.
+		// [fonts-oob-debug] Task B (2026-09-03 follow-up): removed the
+		// per-iteration "load loop (no mapping)" printf+fflush that used to
+		// fire here (up to 256 times per font load) -- it was flagged as a
+		// likely cause of the DEBUG=1/SAFE_HEAP=2 build's tab-unresponsive
+		// hang (each fflush on a worker's proxied stdout is a synchronous
+		// cross-thread op under Emscripten pthreads). cacheGlyph() below still
+		// logs once per glyph actually cached, which is what pinpoints the
+		// crash site; the loop index itself was never needed for that.
 		for (uint i = 0; i < 256; ++i) {
-			printf("[fonts-oob-debug] load loop (no mapping): i=%u\n", i);
-			fflush(stdout);
 			if (!cacheGlyph(_glyphs[i], i)) {
 				_glyphs.erase(i);
 			}
@@ -426,12 +436,11 @@ bool TTFFont::load(Common::SeekableReadStream *ttfFile, DisposeAfterUse::Flag di
 		// We have a fixed map of characters do not load more later.
 		_allowLateCaching = false;
 
+		// [fonts-oob-debug] Task B (2026-09-03 follow-up): same trim as the
+		// no-mapping loop above -- see that comment.
 		for (uint i = 0; i < 256; ++i) {
 			const uint32 unicode = mapping[i] & 0x7FFFFFFF;
 			const bool isRequired = (mapping[i] & 0x80000000) != 0;
-			printf("[fonts-oob-debug] load loop (mapping): i=%u mapping[i]=0x%x unicode=%u isRequired=%d\n",
-				i, (unsigned int)mapping[i], (unsigned int)unicode, (int)isRequired);
-			fflush(stdout);
 			// Check whether loading an important glyph fails and error out if
 			// that is the case.
 			if (!cacheGlyph(_glyphs[i], unicode)) {
@@ -868,9 +877,14 @@ bool TTFFont::cacheGlyph(Glyph &glyph, uint32 chr) const {
 	if (FT_Load_Glyph(_face, slot, loadFlags))
 		return false;
 
+	// [fonts-oob-debug] Task B (2026-09-03 follow-up): no fflush here -- this
+	// line only matters as after-the-fact confirmation that a given glyph did
+	// NOT crash; it is never the last line printed before a real crash, so it
+	// doesn't need the expensive synchronous cross-thread flush. Only the
+	// pre-FT_Load_Glyph line above (the actual last line before a trap) keeps
+	// its fflush.
 	printf("[fonts-oob-debug] cacheGlyph: FT_Load_Glyph returned OK for chr=%u slot=%u\n",
 		(unsigned int)chr, (unsigned int)slot);
-	fflush(stdout);
 
 	if (FT_Render_Glyph(_face->glyph, _renderMode))
 		return false;
@@ -988,9 +1002,12 @@ void TTFFont::assureCached(uint32 chr) const {
 	// for on-demand glyphs after initial font load, as opposed to the load()-time
 	// loop above which is what the confirmed crash stack trace actually goes
 	// through -- logged here in case a lazy-cached glyph is what crashes instead).
+	// [fonts-oob-debug] Task B (2026-09-03 follow-up): no fflush here -- see
+	// the same reasoning as TTFFont::load()'s pre-loop line above. cacheGlyph()
+	// below still has its own pre-FT_Load_Glyph fflush, which is the one that
+	// actually needs to survive as the last printed line before a trap.
 	printf("[fonts-oob-debug] assureCached: chr=%u face=%p\n",
 		(unsigned int)chr, (void *)_face);
-	fflush(stdout);
 
 	Glyph newGlyph;
 	if (cacheGlyph(newGlyph, chr)) {
