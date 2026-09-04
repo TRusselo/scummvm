@@ -48,21 +48,24 @@
 // required pulling in backends/platform/libretro/include/libretro-core.h --
 // a libretro-only, cross-layer include into this generic, multi-backend file),
 // but a final-review finding (2026-09-03) showed retro_log_cb output never
-// reached the automated console-reading tool because RetroArch's own
-// RARCH_LOG/verbosity gating (retroarch/verbosity.c) swallows it, while plain
-// printf from the SAME worker thread (e.g. ScummVM's own detection log lines)
-// was captured normally. Switched to plain printf+fflush(stdout), which also
+// reached the automated console-reading tool, initially attributed to
+// RetroArch's own RARCH_LOG/verbosity gating (retroarch/verbosity.c) --
+// though a later re-review found that gate was already open on this branch
+// (see the parent repo's oob-crash-findings.md), so the real reason is not
+// fully settled. Switched to plain printf+fflush(stdout) as a workaround
+// attempt (result: inconclusive, see the notes doc), which also
 // removes the libretro-core.h include and the __LIBRETRO__ guards below --
 // printf is portable C, not libretro-specific, so this is diagnostic-only
 // logging that no longer needs a libretro-only header on a file every
 // USE_FREETYPE2 backend compiles. Intentionally left in place on this
-// debug/investigation branch only. See task-4-report.md and
+// debug/investigation branch only. See the parent repo's
 // docs/superpowers/notes/2026-09-02-oob-crash-findings.md for detail.
 #include <cstdio>
 
 // Uncomment to test whether skipping FreeType's autofit module (which is where the
 // crashing indirect call lives) avoids the crash. This is a diagnostic toggle only,
-// left disabled by default -- see task-4-report.md, Experiment 1, for the result.
+// left disabled by default -- see the parent repo's
+// docs/superpowers/notes/2026-09-02-oob-crash-findings.md, Experiment 1, for the result.
 // #define FONTS_OOB_DEBUG_NO_AUTOHINT
 
 #include <ft2build.h>
