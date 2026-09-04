@@ -42,14 +42,23 @@
 #include "common/compression/unzip.h"
 
 // [fonts-oob-debug] Task 4 investigation (oob-crash-investigation, 2026-09-02):
-// pull in the libretro log callback so we can trace the inputs feeding
-// TTFFont::load()/cacheGlyph() immediately before the FT_Load_Glyph() call that
-// crashes with "function signature mismatch" inside FreeType's autofit module.
-// This is a diagnostic-only cross-layer include; intentionally left in place on
-// this debug/investigation branch only. See task-4-report.md for detail.
-#ifdef __LIBRETRO__
-#include "backends/platform/libretro/include/libretro-core.h"
-#endif
+// trace the inputs feeding TTFFont::load()/cacheGlyph() immediately before the
+// FT_Load_Glyph() call that crashes with "function signature mismatch" inside
+// FreeType's autofit module. Originally routed through retro_log_cb (which
+// required pulling in backends/platform/libretro/include/libretro-core.h --
+// a libretro-only, cross-layer include into this generic, multi-backend file),
+// but a final-review finding (2026-09-03) showed retro_log_cb output never
+// reached the automated console-reading tool because RetroArch's own
+// RARCH_LOG/verbosity gating (retroarch/verbosity.c) swallows it, while plain
+// printf from the SAME worker thread (e.g. ScummVM's own detection log lines)
+// was captured normally. Switched to plain printf+fflush(stdout), which also
+// removes the libretro-core.h include and the __LIBRETRO__ guards below --
+// printf is portable C, not libretro-specific, so this is diagnostic-only
+// logging that no longer needs a libretro-only header on a file every
+// USE_FREETYPE2 backend compiles. Intentionally left in place on this
+// debug/investigation branch only. See task-4-report.md and
+// docs/superpowers/notes/2026-09-02-oob-crash-findings.md for detail.
+#include <cstdio>
 
 // Uncomment to test whether skipping FreeType's autofit module (which is where the
 // crashing indirect call lives) avoids the crash. This is a diagnostic toggle only,
@@ -394,12 +403,9 @@ bool TTFFont::load(Common::SeekableReadStream *ttfFile, DisposeAfterUse::Flag di
 	// glyph-caching loop that the confirmed crash stack trace shows this call site
 	// reaching (Screen::loadFont -> loadTTFFont -> TTFFont::load -> cacheGlyph ->
 	// FT_Load_Glyph -> [trap inside FreeType's autofit dispatch]).
-#ifdef __LIBRETRO__
-	if (retro_log_cb)
-		retro_log_cb(RETRO_LOG_WARN,
-			"[fonts-oob-debug] TTFFont::load: face=%p num_glyphs=%ld mapping=%p loadFlags=0x%x\n",
-			(void *)_face, (long)_face->num_glyphs, (const void *)mapping, (unsigned int)_loadFlags);
-#endif
+	printf("[fonts-oob-debug] TTFFont::load: face=%p num_glyphs=%ld mapping=%p loadFlags=0x%x\n",
+		(void *)_face, (long)_face->num_glyphs, (const void *)mapping, (unsigned int)_loadFlags);
+	fflush(stdout);
 
 	if (!mapping) {
 		// Allow loading of all unicode characters.
@@ -407,10 +413,8 @@ bool TTFFont::load(Common::SeekableReadStream *ttfFile, DisposeAfterUse::Flag di
 
 		// Load all ISO-8859-1 characters.
 		for (uint i = 0; i < 256; ++i) {
-#ifdef __LIBRETRO__
-			if (retro_log_cb)
-				retro_log_cb(RETRO_LOG_WARN, "[fonts-oob-debug] load loop (no mapping): i=%u\n", i);
-#endif
+			printf("[fonts-oob-debug] load loop (no mapping): i=%u\n", i);
+			fflush(stdout);
 			if (!cacheGlyph(_glyphs[i], i)) {
 				_glyphs.erase(i);
 			}
@@ -422,12 +426,9 @@ bool TTFFont::load(Common::SeekableReadStream *ttfFile, DisposeAfterUse::Flag di
 		for (uint i = 0; i < 256; ++i) {
 			const uint32 unicode = mapping[i] & 0x7FFFFFFF;
 			const bool isRequired = (mapping[i] & 0x80000000) != 0;
-#ifdef __LIBRETRO__
-			if (retro_log_cb)
-				retro_log_cb(RETRO_LOG_WARN,
-					"[fonts-oob-debug] load loop (mapping): i=%u mapping[i]=0x%x unicode=%u isRequired=%d\n",
-					i, (unsigned int)mapping[i], (unsigned int)unicode, (int)isRequired);
-#endif
+			printf("[fonts-oob-debug] load loop (mapping): i=%u mapping[i]=0x%x unicode=%u isRequired=%d\n",
+				i, (unsigned int)mapping[i], (unsigned int)unicode, (int)isRequired);
+			fflush(stdout);
 			// Check whether loading an important glyph fails and error out if
 			// that is the case.
 			if (!cacheGlyph(_glyphs[i], unicode)) {
@@ -856,22 +857,17 @@ bool TTFFont::cacheGlyph(Glyph &glyph, uint32 chr) const {
 #else
 	FT_Int32 loadFlags = _loadFlags;
 #endif
-#ifdef __LIBRETRO__
-	if (retro_log_cb)
-		retro_log_cb(RETRO_LOG_WARN,
-			"[fonts-oob-debug] cacheGlyph: chr=%u slot=%u face=%p loadFlags=0x%x (numGlyphs=%ld)\n",
-			(unsigned int)chr, (unsigned int)slot, (void *)_face, (unsigned int)loadFlags,
-			(long)_face->num_glyphs);
-#endif
+	printf("[fonts-oob-debug] cacheGlyph: chr=%u slot=%u face=%p loadFlags=0x%x (numGlyphs=%ld)\n",
+		(unsigned int)chr, (unsigned int)slot, (void *)_face, (unsigned int)loadFlags,
+		(long)_face->num_glyphs);
+	fflush(stdout);
 
 	if (FT_Load_Glyph(_face, slot, loadFlags))
 		return false;
 
-#ifdef __LIBRETRO__
-	if (retro_log_cb)
-		retro_log_cb(RETRO_LOG_WARN, "[fonts-oob-debug] cacheGlyph: FT_Load_Glyph returned OK for chr=%u slot=%u\n",
-			(unsigned int)chr, (unsigned int)slot);
-#endif
+	printf("[fonts-oob-debug] cacheGlyph: FT_Load_Glyph returned OK for chr=%u slot=%u\n",
+		(unsigned int)chr, (unsigned int)slot);
+	fflush(stdout);
 
 	if (FT_Render_Glyph(_face->glyph, _renderMode))
 		return false;
@@ -989,11 +985,9 @@ void TTFFont::assureCached(uint32 chr) const {
 	// for on-demand glyphs after initial font load, as opposed to the load()-time
 	// loop above which is what the confirmed crash stack trace actually goes
 	// through -- logged here in case a lazy-cached glyph is what crashes instead).
-#ifdef __LIBRETRO__
-	if (retro_log_cb)
-		retro_log_cb(RETRO_LOG_WARN, "[fonts-oob-debug] assureCached: chr=%u face=%p\n",
-			(unsigned int)chr, (void *)_face);
-#endif
+	printf("[fonts-oob-debug] assureCached: chr=%u face=%p\n",
+		(unsigned int)chr, (void *)_face);
+	fflush(stdout);
 
 	Glyph newGlyph;
 	if (cacheGlyph(newGlyph, chr)) {
