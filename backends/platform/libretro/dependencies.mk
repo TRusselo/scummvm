@@ -6,8 +6,15 @@
 DEPS_SUBMODULES             := libretro-deps libretro-common
 
 DEPS_FOLDER_libretro-deps   := libretro-deps
-DEPS_URL_libretro-deps      := https://github.com/libretro/libretro-deps
-DEPS_COMMIT_libretro-deps   := 7e6e34f0319f4c7448d72f0e949e76265ccf55a1
+# Forked to fix two FreeType autofit function-pointer signature mismatches
+# (AF_WritingSystem_ApplyHintsFunc's return type, and af_dummy_hints_apply's
+# missing `metrics' parameter) that native ABIs silently tolerate but that
+# WASM's call_indirect does not -- see
+# docs/superpowers/notes/2026-09-02-oob-crash-findings.md on the
+# debug/fonts-oob-crash branch of the parent scummvm-wasm repo for the full
+# investigation. Branch: fix/wasm-autofit-signature-mismatch.
+DEPS_URL_libretro-deps      := https://github.com/TRusselo/libretro-deps
+DEPS_COMMIT_libretro-deps   := b94bd2d367c026328c808f21ea673fa6425066cd
 
 DEPS_FOLDER_libretro-common := libretro-common
 DEPS_URL_libretro-common    := https://github.com/libretro/libretro-common
