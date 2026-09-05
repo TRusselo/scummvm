@@ -32,6 +32,17 @@ static const byte EGA_PALETTE[16][3] = {
 };
 
 
+// Hercules monochrome palettes, backported from upstream ScummVM.
+// Amber
+const byte HGC_A_PALETTE[] = {
+	0x00, 0x00, 0x00,	0xAE, 0x69, 0x38
+};
+
+// Green
+const byte HGC_G_PALETTE[] = {
+	0x00, 0x00, 0x00,	0x00, 0xFF, 0x00
+};
+
 Palette::Palette(uint size) : _data(nullptr), _size(size), _disposeAfterUse(DisposeAfterUse::YES) {
 	if (_size > 0) {
 		_data = new byte[_size * 3]();

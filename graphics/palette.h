@@ -42,6 +42,11 @@ enum ColorDistanceMethod {
 constexpr int PALETTE_COUNT = 256;
 constexpr int PALETTE_SIZE = (256 * 3);
 
+// Hercules monochrome palettes, backported from upstream ScummVM for the
+// synced chamber engine (cga.cpp selects them for its Hercules renderer).
+extern const byte HGC_A_PALETTE[6];
+extern const byte HGC_G_PALETTE[6];
+
 /**
  * @brief Simple class for handling a palette data.
  *
