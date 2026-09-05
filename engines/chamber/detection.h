@@ -19,37 +19,19 @@
  *
  */
 
-#ifndef CHAMBER_INPUT_H
-#define CHAMBER_INPUT_H
+#ifndef CHAMBER_DETECTION_H
+#define CHAMBER_DETECTION_H
 
 namespace Chamber {
 
-extern byte buttons;
-extern byte right_button;
-
-extern byte have_mouse;
-
-extern volatile byte key_direction;
-extern volatile byte key_code;
-extern byte key_held;
-
-byte readKeyboardChar(void);
-void clearKeyboard(void);
-byte getKeyScan(void);
-
-byte pollMouse(uint16 *curs_x, uint8 *curs_y);
-byte pollKeyboard(void);
-void setInputButtons(byte keys);
-
-void pollInput(void);
-void clearButtons(void);
-void processInput(void);
-void pollInputButtonsOnly(void);
-void resetInput(void);
-
-void initInput(void);
-void uninitInput(void);
+// Bits 0-14 are free for engine use; ADGF_* flags occupy bits 15-31.
+enum ChamberGameFlags {
+	GF_SPLASH_PRESCGA = (1 << 0), ///< Title screen is PRESCGA.BIN (EN_USA CGA)
+	GF_SPLASH_PRES    = (1 << 1), ///< Title screen is PRES.BIN (multilingual CGA)
+	GF_SPLASH_PRESEGA = (1 << 2), ///< Title screen is PRESEGA.EGA (EGA)
+	GF_SPLASH2_DRAP   = (1 << 3), ///< Has DRAP.BIN language selection screen
+};
 
 } // End of namespace Chamber
 
-#endif
+#endif // CHAMBER_DETECTION_H

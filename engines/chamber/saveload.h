@@ -19,36 +19,15 @@
  *
  */
 
-#ifndef CHAMBER_INPUT_H
-#define CHAMBER_INPUT_H
+#ifndef CHAMBER_SAVELOAD_H
+#define CHAMBER_SAVELOAD_H
 
 namespace Chamber {
 
-extern byte buttons;
-extern byte right_button;
-
-extern byte have_mouse;
-
-extern volatile byte key_direction;
-extern volatile byte key_code;
-extern byte key_held;
-
-byte readKeyboardChar(void);
-void clearKeyboard(void);
-byte getKeyScan(void);
-
-byte pollMouse(uint16 *curs_x, uint8 *curs_y);
-byte pollKeyboard(void);
-void setInputButtons(byte keys);
-
-void pollInput(void);
-void clearButtons(void);
-void processInput(void);
-void pollInputButtonsOnly(void);
-void resetInput(void);
-
-void initInput(void);
-void uninitInput(void);
+int16 loadScena(void);
+int16 saveScena(void);
+void saveRestartGame(void);
+void restartGame(void);
 
 } // End of namespace Chamber
 
