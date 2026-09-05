@@ -21,6 +21,7 @@
 
 #include "common/config-manager.h"
 #include "common/system.h"
+#include "common/translation.h"
 
 #include "gui/saveload.h"
 #include "gui/saveload-dialog.h"
@@ -29,6 +30,14 @@
 #include "engines/metaengine.h"
 
 namespace GUI {
+
+// Backported from upstream ScummVM master (used by the synced dm engine).
+SaveLoadChooser::SaveLoadChooser(bool saveMode)
+	: SaveLoadChooser(
+		saveMode ? _("Save game:") : _("Restore game:"),
+		saveMode ? _("Save") : _("Restore"),
+		saveMode) {
+}
 
 SaveLoadChooser::SaveLoadChooser(const Common::U32String &title, const Common::U32String &buttonLabel, bool saveMode)
 	: _impl(nullptr), _title(title), _buttonLabel(buttonLabel), _saveMode(saveMode) {
