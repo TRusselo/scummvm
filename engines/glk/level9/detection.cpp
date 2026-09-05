@@ -799,7 +799,13 @@ bool Level9MetaEngine::detectGames(const Common::FSList &fslist, DetectedGames &
 		// Check if it's a valid Level 9 game
 		byte *startFile = &data[0];
 		Scanner scanner;
-		int offset = scanner.scanner(&data[0], fileSize) < 0;
+		// Precedence bug: this used to be `int offset = scanner(...) < 0;`,
+		// which stored the comparison result (0 or 1) instead of the scan
+		// result, so the `< 0` test below could never fail and every .dat
+		// file under 64K reached gln_gameid_identify_game() at a bogus
+		// offset. Any folder with a small .dat file (e.g. a DMSAVE.DAT save
+		// game) could then be "detected" as a Level 9 game and fail to load.
+		int offset = scanner.scanner(&data[0], fileSize);
 		if (offset < 0)
 			continue;
 
