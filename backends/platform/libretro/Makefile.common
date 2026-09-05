@@ -92,6 +92,27 @@ DEFINES          +=  -DUSE_INDEO3
 USE_INDEO45       = 1
 DEFINES          +=  -DUSE_INDEO45
 
+# Two more objects that audio/module.mk gates but that nothing #ifdefs out at
+# the call site, so leaving them undefined does not disable a feature -- it
+# leaves dangling references. The link runs with
+# -sERROR_ON_UNDEFINED_SYMBOLS=0, so those references silently become null
+# function pointers instead of failing the build, and calling one traps the
+# emulator thread with "null function".
+#
+# USE_FMTOWNS_PC98_AUDIO gates softsynth/fmtowns_pc98/, which includes
+# towns_pc98_plugins.o. base/plugins.cpp calls LINK_PLUGIN(TOWNS),
+# LINK_PLUGIN(PC98) and LINK_PLUGIN(SEGACD) unconditionally. Verified against
+# the shipped core: the plugin display strings "FM-Towns Audio", "PC-98 Audio"
+# and "SegaCD Audio" were absent from the binary, so every FM-TOWNS, PC-98 and
+# SegaCD title was running with three null music plugins registered.
+USE_FMTOWNS_PC98_AUDIO = 1
+DEFINES          +=  -DUSE_FMTOWNS_PC98_AUDIO
+# USE_VGMTRANS_AUDIO gates audio/soundfont/. engines/dragons includes
+# audio/soundfont/{rawfile,vab/vab,vgmcoll}.h unconditionally and dragons is in
+# all-engines.list; VGMColl and psxspu were likewise absent from the binary.
+USE_VGMTRANS_AUDIO = 1
+DEFINES          +=  -DUSE_VGMTRANS_AUDIO
+
 # Features with baked-in libs (defines handled in dependencies.mk)
 USE_FLUIDSYNTH   ?= 1
 UNAVAILABLE_DEPS += $(call check_deps_availability, $(USE_FLUIDSYNTH), fluidsynth)
