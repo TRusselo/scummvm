@@ -468,12 +468,20 @@ bool AVIDecoder::loadStream(Common::SeekableReadStream *stream) {
 
 	if (!_decodedHeader) {
 		warning("Failed to parse AVI header");
+		// On failure the caller still owns the stream (VideoDecoder::loadFile
+		// deletes it, and the early returns above never delete it either), so
+		// detach it before close() would delete it too. With the stream freed
+		// twice, the caller's delete ran a virtual destructor through a
+		// clobbered vtable pointer: a native double free, and on WebAssembly a
+		// "function signature mismatch" trap.
+		_fileStream = nullptr;
 		close();
 		return false;
 	}
 
 	if (!_foundMovieList) {
 		warning("Failed to find 'MOVI' list");
+		_fileStream = nullptr;
 		close();
 		return false;
 	}

@@ -79,6 +79,19 @@ UNAVAILABLE_DEPS += $(call check_deps_availability, $(USE_HIGHRES), highres)
 USE_BINK          = 1
 DEFINES          +=  -DUSE_BINK
 
+# Indeo 3/4/5 are the only image/codecs gated by image/module.mk and
+# image/codecs/codec.cpp that this port left out. Upstream ScummVM's libretro
+# port (backends/platform/libretro/Makefile.common on scummvm/scummvm master)
+# enables both; this libretro/scummvm-based fork lagged behind. Without them
+# any AVI using Indeo (Beavis and Butt-Head: IV32, Full Pipe: IV50, ...) gets
+# no codec, AVIDecoder::loadStream() fails, and the stream double-free on
+# that failure path (fixed in video/avi_decoder.cpp) crashed the WASM core
+# with "function signature mismatch".
+USE_INDEO3        = 1
+DEFINES          +=  -DUSE_INDEO3
+USE_INDEO45       = 1
+DEFINES          +=  -DUSE_INDEO45
+
 # Features with baked-in libs (defines handled in dependencies.mk)
 USE_FLUIDSYNTH   ?= 1
 UNAVAILABLE_DEPS += $(call check_deps_availability, $(USE_FLUIDSYNTH), fluidsynth)
@@ -224,7 +237,11 @@ endif
 ifeq ($(DEBUG), 1)
    DEFINES += -O0 -g -DLIBRETRO_DEBUG -DDEBUG_BUILD
 else
-   DEFINES += -DDISABLE_TEXT_CONSOLE -DRELEASE_BUILD
+   # Upstream also adds -DDISABLE_TEXT_CONSOLE here, which compiles every
+   # warning() call out of the binary. That left this port with no
+   # diagnostics at all when AVI loading failed for lack of a codec; keep
+   # warnings (they reach the libretro log callback and the browser console).
+   DEFINES += -DRELEASE_BUILD
 endif
 
 ifeq ($(HAVE_NEON), 1)
