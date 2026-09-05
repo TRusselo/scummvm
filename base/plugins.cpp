@@ -133,13 +133,11 @@ public:
 		LINK_PLUGIN(FLUIDSYNTH)
 		#endif
 
-		// WEBMIDI intentionally excluded (see backends/module.mk): its EM_JS
-		// glue depends on a midiOutputMap global and a Module.setValue export
-		// that only exist in ScummVM's own standalone-Emscripten shell, not
-		// this RetroArch/EmulatorJS-based libretro-core build.
-		// #ifdef EMSCRIPTEN
-		// LINK_PLUGIN(WEBMIDI)
-		// #endif
+		// WEBMIDI is deliberately not linked here (its object is also
+		// excluded in backends/module.mk): its EM_JS glue depends on a
+		// midiOutputMap global and a Module.setValue export that only exist
+		// in ScummVM's own standalone-Emscripten shell, not in this
+		// RetroArch/EmulatorJS-based libretro-core build.
 		#ifdef USE_MT32EMU
 		LINK_PLUGIN(MT32)
 		#endif

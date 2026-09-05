@@ -41,33 +41,6 @@
 #include "common/ptr.h"
 #include "common/compression/unzip.h"
 
-// [fonts-oob-debug] Task 4 investigation (oob-crash-investigation, 2026-09-02):
-// trace the inputs feeding TTFFont::load()/cacheGlyph() immediately before the
-// FT_Load_Glyph() call that crashes with "function signature mismatch" inside
-// FreeType's autofit module. Originally routed through retro_log_cb (which
-// required pulling in backends/platform/libretro/include/libretro-core.h --
-// a libretro-only, cross-layer include into this generic, multi-backend file),
-// but a final-review finding (2026-09-03) showed retro_log_cb output never
-// reached the automated console-reading tool, initially attributed to
-// RetroArch's own RARCH_LOG/verbosity gating (retroarch/verbosity.c) --
-// though a later re-review found that gate was already open on this branch
-// (see the parent repo's oob-crash-findings.md), so the real reason is not
-// fully settled. Switched to plain printf+fflush(stdout) as a workaround
-// attempt (result: inconclusive, see the notes doc), which also
-// removes the libretro-core.h include and the __LIBRETRO__ guards below --
-// printf is portable C, not libretro-specific, so this is diagnostic-only
-// logging that no longer needs a libretro-only header on a file every
-// USE_FREETYPE2 backend compiles. Intentionally left in place on this
-// debug/investigation branch only. See the parent repo's
-// docs/superpowers/notes/2026-09-02-oob-crash-findings.md for detail.
-#include <cstdio>
-
-// Uncomment to test whether skipping FreeType's autofit module (which is where the
-// crashing indirect call lives) avoids the crash. This is a diagnostic toggle only,
-// left disabled by default -- see the parent repo's
-// docs/superpowers/notes/2026-09-02-oob-crash-findings.md, Experiment 1, for the result.
-// #define FONTS_OOB_DEBUG_NO_AUTOHINT
-
 #include <ft2build.h>
 #include FT_FREETYPE_H
 #include FT_BITMAP_H
@@ -402,31 +375,11 @@ bool TTFFont::load(Common::SeekableReadStream *ttfFile, DisposeAfterUse::Flag di
 		_loadFlags |= FT_LOAD_NO_BITMAP;
 	}
 
-	// [fonts-oob-debug] Task 4: log the face/mapping state right before the initial
-	// glyph-caching loop that the confirmed crash stack trace shows this call site
-	// reaching (Screen::loadFont -> loadTTFFont -> TTFFont::load -> cacheGlyph ->
-	// FT_Load_Glyph -> [trap inside FreeType's autofit dispatch]).
-	// [fonts-oob-debug] Task B (2026-09-03 follow-up): no fflush here -- this
-	// fires once per font load (cheap either way), but the loop below will
-	// call cacheGlyph() up to 256 times before a crash could occur, so this
-	// line is never the last one printed before a trap and doesn't need the
-	// expensive synchronous flush.
-	printf("[fonts-oob-debug] TTFFont::load: face=%p num_glyphs=%ld mapping=%p loadFlags=0x%x\n",
-		(void *)_face, (long)_face->num_glyphs, (const void *)mapping, (unsigned int)_loadFlags);
-
 	if (!mapping) {
 		// Allow loading of all unicode characters.
 		_allowLateCaching = true;
 
 		// Load all ISO-8859-1 characters.
-		// [fonts-oob-debug] Task B (2026-09-03 follow-up): removed the
-		// per-iteration "load loop (no mapping)" printf+fflush that used to
-		// fire here (up to 256 times per font load) -- it was flagged as a
-		// likely cause of the DEBUG=1/SAFE_HEAP=2 build's tab-unresponsive
-		// hang (each fflush on a worker's proxied stdout is a synchronous
-		// cross-thread op under Emscripten pthreads). cacheGlyph() below still
-		// logs once per glyph actually cached, which is what pinpoints the
-		// crash site; the loop index itself was never needed for that.
 		for (uint i = 0; i < 256; ++i) {
 			if (!cacheGlyph(_glyphs[i], i)) {
 				_glyphs.erase(i);
@@ -436,8 +389,6 @@ bool TTFFont::load(Common::SeekableReadStream *ttfFile, DisposeAfterUse::Flag di
 		// We have a fixed map of characters do not load more later.
 		_allowLateCaching = false;
 
-		// [fonts-oob-debug] Task B (2026-09-03 follow-up): same trim as the
-		// no-mapping loop above -- see that comment.
 		for (uint i = 0; i < 256; ++i) {
 			const uint32 unicode = mapping[i] & 0x7FFFFFFF;
 			const bool isRequired = (mapping[i] & 0x80000000) != 0;
@@ -859,32 +810,8 @@ bool TTFFont::cacheGlyph(Glyph &glyph, uint32 chr) const {
 	// We use the light target and render mode to improve the looks of the
 	// glyphs. It is most noticeable in FreeSansBold.ttf, where otherwise the
 	// 't' glyph looks like it is cut off on the right side.
-
-	// [fonts-oob-debug] Task 4: log everything feeding the crashing FT_Load_Glyph()
-	// call -- chr, the slot FT_Get_Char_Index() returned, the _face pointer, and
-	// _loadFlags -- immediately before making the call, so the last line before a
-	// crash pinpoints exactly which (chr, slot, face, flags) tuple triggered it.
-#ifdef FONTS_OOB_DEBUG_NO_AUTOHINT
-	FT_Int32 loadFlags = _loadFlags | FT_LOAD_NO_AUTOHINT;
-#else
-	FT_Int32 loadFlags = _loadFlags;
-#endif
-	printf("[fonts-oob-debug] cacheGlyph: chr=%u slot=%u face=%p loadFlags=0x%x (numGlyphs=%ld)\n",
-		(unsigned int)chr, (unsigned int)slot, (void *)_face, (unsigned int)loadFlags,
-		(long)_face->num_glyphs);
-	fflush(stdout);
-
-	if (FT_Load_Glyph(_face, slot, loadFlags))
+	if (FT_Load_Glyph(_face, slot, _loadFlags))
 		return false;
-
-	// [fonts-oob-debug] Task B (2026-09-03 follow-up): no fflush here -- this
-	// line only matters as after-the-fact confirmation that a given glyph did
-	// NOT crash; it is never the last line printed before a real crash, so it
-	// doesn't need the expensive synchronous cross-thread flush. Only the
-	// pre-FT_Load_Glyph line above (the actual last line before a trap) keeps
-	// its fflush.
-	printf("[fonts-oob-debug] cacheGlyph: FT_Load_Glyph returned OK for chr=%u slot=%u\n",
-		(unsigned int)chr, (unsigned int)slot);
 
 	if (FT_Render_Glyph(_face->glyph, _renderMode))
 		return false;
@@ -997,17 +924,6 @@ void TTFFont::assureCached(uint32 chr) const {
 	if (!chr || !_allowLateCaching || _glyphs.contains(chr)) {
 		return;
 	}
-
-	// [fonts-oob-debug] Task 4: log lazy-caching calls too (this is the path used
-	// for on-demand glyphs after initial font load, as opposed to the load()-time
-	// loop above which is what the confirmed crash stack trace actually goes
-	// through -- logged here in case a lazy-cached glyph is what crashes instead).
-	// [fonts-oob-debug] Task B (2026-09-03 follow-up): no fflush here -- see
-	// the same reasoning as TTFFont::load()'s pre-loop line above. cacheGlyph()
-	// below still has its own pre-FT_Load_Glyph fflush, which is the one that
-	// actually needs to survive as the last printed line before a trap.
-	printf("[fonts-oob-debug] assureCached: chr=%u face=%p\n",
-		(unsigned int)chr, (void *)_face);
 
 	Glyph newGlyph;
 	if (cacheGlyph(newGlyph, chr)) {
