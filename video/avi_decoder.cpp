@@ -476,12 +476,16 @@ bool AVIDecoder::loadStream(Common::SeekableReadStream *stream) {
 
 	if (!_decodedHeader) {
 		warning("Failed to parse AVI header");
+		// The caller still owns the stream on failure; detach it so close()
+		// does not delete it a second time.
+		_fileStream = nullptr;
 		close();
 		return false;
 	}
 
 	if (!_foundMovieList) {
 		warning("Failed to find 'MOVI' list");
+		_fileStream = nullptr;
 		close();
 		return false;
 	}
