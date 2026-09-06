@@ -254,7 +254,11 @@ endif
 ifeq ($(DEBUG), 1)
    DEFINES += -O0 -g -DLIBRETRO_DEBUG -DDEBUG_BUILD
 else
-   DEFINES += -DDISABLE_TEXT_CONSOLE -DRELEASE_BUILD
+   # DISABLE_TEXT_CONSOLE (upstream default here) compiles every warning()
+   # out of the binary, leaving release builds with no diagnostics at all --
+   # e.g. no way to see why AVI loading failed. Keep warnings: they reach the
+   # libretro log callback and, on the WASM core, the browser console.
+   DEFINES += -DRELEASE_BUILD
 endif
 
 ifeq ($(HAVE_NEON), 1)
