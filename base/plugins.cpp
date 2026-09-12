@@ -142,7 +142,7 @@ public:
 		LINK_PLUGIN(FLUIDSYNTH)
 		#endif
 
-		#ifdef EMSCRIPTEN
+		#if defined(EMSCRIPTEN) && !defined(__LIBRETRO__)
 		LINK_PLUGIN(WEBMIDI)
 		#endif
 		#ifdef USE_MT32EMU
